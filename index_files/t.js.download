@@ -1,0 +1,150 @@
+(function() {
+    function getQueryString(name) {  
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");  
+        var r = window.location.search.substr(1).match(reg);  
+        if (r != null) return decodeURI(r[2]);
+        return '';  
+    }
+    function setCookie(name, value) {
+        return document.cookie = name + '=' + escape(value) + "; path=/";
+    }
+    function getCookieString(name) {
+        var reg = new RegExp("(^| )" + name + "=(([^;]*)(;|$))")
+        var arr = document.cookie.match(reg);
+        if (arr && arr[3]) return unescape(arr[3])
+        else return '';
+    }
+    function getLocalStore(name) {
+        return window.localStorage.getItem(name) || '';
+    }
+    function loadTrack(callback) {
+        var pixJs = '/pubassets/js/index.min.js'
+        if(isScriptLoaded(pixJs)){
+            try{
+                var scriptDom = document.createElement('script');
+                scriptDom.src = '/pubassets/js/index.min.js';
+                scriptDom.onload = callback;
+                scriptDom.onerror = function(error) { 
+                    callback();
+                };
+                document.body.appendChild(scriptDom);
+                scriptDom = null;
+            }catch(err){
+                callback();
+            }
+           
+        }else{
+            callback();
+        }
+    }
+    function isScriptLoaded(url) {
+        var scripts = document.head.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+            if (scripts[i].src.includes(url)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    function getOtToken() {
+        var result = getQueryString('of_t') || getCookieString('of_t') || getLocalStore('of_t');
+        if (!result) {
+            result = "4d9d25883949dd9673fcf97ab3fae3f2";
+        }
+        return result;
+    }
+    function filterQuery(query) {
+        if (!query) return '';
+
+        var queryObj = {};
+        query.split('&').forEach(function(item) {
+            var itemArr = item.split('=');
+            queryObj[itemArr[0]] = itemArr[1] || '';
+        });
+
+        var result = [];
+        Object.keys(queryObj).forEach(function(key) {
+            result.push(key + '=' + queryObj[key]);
+        });
+
+        return result.join('&');
+    }
+    function setQuery(url, query) {
+        if (!url) return {};
+
+        var urlArr = url.split('?');
+
+        var originQuery = '';
+        var anchor = '';
+        if (urlArr.length > 1) {
+            var queryArr = urlArr[1].split('#');
+            if (queryArr.length > 1) {
+                anchor = queryArr[1];
+            }
+            originQuery = queryArr[0];
+        }
+
+        var nowQuery = originQuery ? originQuery + '&' + query : query;
+        var urlObj = {
+            path: urlArr[0] || '',
+            query: filterQuery(nowQuery),
+            anchor: anchor
+        };
+
+        return urlObj;
+    }
+    function urlObjToString(urlObj) {
+        var result = urlObj.path || '';
+
+        if (urlObj.query) {
+            result += ('?' + urlObj.query);
+        }
+
+        if (urlObj.anchor) {
+            result += ('#' + urlObj.anchor);
+        }
+
+        return result;
+    }
+    var ot_token = getOtToken();
+    loadTrack(function() {
+        var domain = window.location.host.split('.');
+        if (domain.length > 2) {
+            domain = domain[1] + '.' + domain[2];
+        } else {
+            domain.join('.');
+        }
+        if(typeof zx_track !== 'undefined' && zx_track.zx_track){
+            zx_track.zx_track.init({
+                url: 'https://pix.' + domain + '/',
+                track_log: false,
+                session_id: ot_token,
+                user_id: ot_token,
+            });
+        }
+        var url = window.location.href;
+        var str = location.search;
+        if(str){
+            if(getQueryString('of_t')){
+                url = url.replace(getQueryString('of_t'), ot_token);
+            }else{
+                url = url + "&of_t=" + ot_token;
+            }
+        }else{
+            url = url + "?of_t=" + ot_token;
+        }
+        setCookie('of_t', ot_token);
+        window.localStorage.setItem('of_t', ot_token);
+
+        var aDoms = document.querySelectorAll('a');
+        for (var i = 0; i < aDoms.length; i++) {
+            var target = aDoms[i];
+            if (target.href.indexOf('/') > -1 && target.href.indexOf('#') === -1) {
+                var urlObj = setQuery(target.href, 'of_t=' + ot_token);
+                target.href = urlObjToString(urlObj);
+            }
+        }
+
+        window.history.pushState(null, null, url);
+    });
+})();
